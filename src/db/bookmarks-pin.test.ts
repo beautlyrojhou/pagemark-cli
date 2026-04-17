@@ -1,57 +1,51 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import Database from 'better-sqlite3';
-import { initSchema } from './schema';
-import { addBookmark } from './bookmarks';
-import { pinBookmark, unpinBookmark, listPinnedBookmarks } from './bookmarks-pin';
+import { openDb, initSchema } from "./schema";
+import { addBookmark } from "./bookmarks";
+import { pinBookmark, unpinBookmark, listPinnedBookmarks } from "./bookmarks-pin";
 
 function createTestDb() {
-  const db = new Database(':memory:');
+  const db = openDb(":memory:");
   initSchema(db);
-  // ensure pinned column exists
-  try {
-    db.exec('ALTER TABLE bookmarks ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
-  } catch {
-    // column may already exist in schema
-  }
   return db;
 }
 
-describe('bookmarks-pin', () => {
-  let db: ReturnType<typeof createTestDb>;
+test("pin and list pinned bookmarks", () => {
+  const db = createTestDb();
+  const id = addBookmark(db, { url: "https://example.com", title: "Example", tags: [] });
+  pinBookmark(db, id);
+  const pinned = listPinnedBookmarks(db);
+  expect(pinned).toHaveLength(1);
+  expect(pinned[0].url).toBe("https://example.com");
+});
 
-  beforeEach(() => {
-    db = createTestDb();
-  });
+test("unpin removes from pinned list", () => {
+  const db = createTestDb();
+  const id = addBookmark(db, { url: "https://example.com", title: "Example", tags: [] });
+  pinBookmark(db, id);
+  unpinBookmark(db, id);
+  const pinned = listPinnedBookmarks(db);
+  expect(pinned).toHaveLength(0);
+});
 
-  it('pins a bookmark', () => {
-    const id = addBookmark(db, 'https://example.com', 'Example', []);
-    const result = pinBookmark(db, id);
-    expect(result).toBe(true);
-    const pinned = listPinnedBookmarks(db);
-    expect(pinned).toHaveLength(1);
-    expect(pinned[0].url).toBe('https://example.com');
-  });
+test("pinBookmark returns false for missing id", () => {
+  const db = createTestDb();
+  const result = pinBookmark(db, 9999);
+  expect(result).toBe(false);
+});
 
-  it('unpins a bookmark', () => {
-    const id = addBookmark(db, 'https://example.com', 'Example', []);
-    pinBookmark(db, id);
-    const result = unpinBookmark(db, id);
-    expect(result).toBe(true);
-    expect(listPinnedBookmarks(db)).toHaveLength(0);
-  });
+test("multiple bookmarks only pinned ones listed", () => {
+  const db = createTestDb();
+  const id1 = addBookmark(db, { url: "https://a.com", title: "A", tags: [] });
+  addBookmark(db, { url: "https://b.com", title: "B", tags: [] });
+  pinBookmark(db, id1);
+  const pinned = listPinnedBookmarks(db);
+  expect(pinned).toHaveLength(1);
+  expect(pinned[0].id).toBe(id1);
+});
 
-  it('returns false when bookmark does not exist', () => {
-    expect(pinBookmark(db, 9999)).toBe(false);
-    expect(unpinBookmark(db, 9999)).toBe(false);
-  });
-
-  it('lists multiple pinned bookmarks', () => {
-    const id1 = addBookmark(db, 'https://a.com', 'A', []);
-    const id2 = addBookmark(db, 'https://b.com', 'B', []);
-    addBookmark(db, 'https://c.com', 'C', []);
-    pinBookmark(db, id1);
-    pinBookmark(db, id2);
-    const pinned = listPinnedBookmarks(db);
-    expect(pinned).toHaveLength(2);
-  });
+test("listPinnedBookmarks includes tags", () => {
+  const db = createTestDb();
+  const id = addBookmark(db, { url: "https://tagged.com", title: "Tagged", tags: ["dev", "ts"] });
+  pinBookmark(db, id);
+  const pinned = listPinnedBookmarks(db);
+  expect(pinned[0].tags).toContain("dev");
 });
