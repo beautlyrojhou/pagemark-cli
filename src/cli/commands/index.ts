@@ -1,4 +1,4 @@
-import { Argv } from 'yargs';
+import { Command } from 'commander';
 import { Database } from 'better-sqlite3';
 import { registerAddCommand } from './add';
 import { registerSearchCommand } from './search';
@@ -9,15 +9,19 @@ import { registerOpenCommand } from './open';
 import { registerExportCommand } from './export';
 import { registerImportCommand } from './import';
 import { registerUpdateCommand } from './update';
+import { registerStatsCommand } from './stats';
+import { registerDuplicateCommand } from './duplicate';
 
-export function registerAllCommands(yargs: Argv, db: Database) {
-  registerAddCommand(yargs, db);
-  registerSearchCommand(yargs, db);
-  registerTagCommand(yargs, db);
-  registerTagsCommand(yargs, db);
-  registerDeleteCommand(yargs, db);
-  registerOpenCommand(yargs, db);
-  registerExportCommand(yargs, db);
-  registerImportCommand(yargs, db);
-  registerUpdateCommand(yargs, db);
+export function registerAllCommands(program: Command, db: Database): void {
+  registerAddCommand(program, db);
+  registerSearchCommand(program, db);
+  registerTagCommand(program, db);
+  registerTagsCommand(program, db);
+  registerDeleteCommand(program, db);
+  registerOpenCommand(program, db);
+  registerExportCommand(program, db);
+  registerImportCommand(program, db);
+  registerUpdateCommand(program, db);
+  registerStatsCommand(program, db);
+  registerDuplicateCommand(program, db);
 }
