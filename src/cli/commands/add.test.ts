@@ -52,4 +52,17 @@ describe('add command', () => {
 
     await db.close();
   });
+
+  it('returns unique sequential ids for multiple bookmarks', async () => {
+    const db = await createTestDb();
+    const { addBookmark } = await import('../../db/bookmarks');
+
+    const id1 = await addBookmark(db, { url: 'https://first.com', title: 'First' });
+    const id2 = await addBookmark(db, { url: 'https://second.com', title: 'Second' });
+
+    expect(id1).not.toBe(id2);
+    expect(id2).toBeGreaterThan(id1);
+
+    await db.close();
+  });
 });
