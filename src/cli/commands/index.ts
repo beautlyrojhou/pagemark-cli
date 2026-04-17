@@ -4,12 +4,20 @@ import { registerAddCommand } from './add';
 import { registerSearchCommand } from './search';
 import { registerTagCommand } from './tag';
 import { registerTagsCommand } from './tags';
+import { registerDeleteCommand } from './delete';
+import { registerOpenCommand } from './open';
+import { registerExportCommand } from './export';
+import { registerImportCommand } from './import';
+import { registerUpdateCommand } from './update';
 
-export function registerAllCommands(yargs: Argv, db: Database): Argv {
-  let y = yargs;
-  y = registerAddCommand(y, db);
-  y = registerSearchCommand(y, db);
-  y = registerTagCommand(y, db);
-  y = registerTagsCommand(y, db);
-  return y;
+export function registerAllCommands(yargs: Argv, db: Database) {
+  registerAddCommand(yargs, db);
+  registerSearchCommand(yargs, db);
+  registerTagCommand(yargs, db);
+  registerTagsCommand(yargs, db);
+  registerDeleteCommand(yargs, db);
+  registerOpenCommand(yargs, db);
+  registerExportCommand(yargs, db);
+  registerImportCommand(yargs, db);
+  registerUpdateCommand(yargs, db);
 }
