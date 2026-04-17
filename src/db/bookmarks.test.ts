@@ -27,6 +27,18 @@ describe('bookmarks module', () => {
     expect(bm.tags).toEqual(expect.arrayContaining(['web', 'test']));
   });
 
+  test('addBookmark stores a bookmark with no tags', () => {
+    const bm = addBookmark(db, 'https://example.com', 'Example', '', []);
+    expect(bm.tags).toEqual([]);
+  });
+
+  test('getBookmarkById returns the correct bookmark', () => {
+    const bm = addBookmark(db, 'https://example.com', 'Example', '', []);
+    const found = getBookmarkById(db, bm.id);
+    expect(found).toBeDefined();
+    expect(found?.url).toBe('https://example.com');
+  });
+
   test('getBookmarkById returns undefined for missing id', () => {
     expect(getBookmarkById(db, 999)).toBeUndefined();
   });
@@ -43,6 +55,12 @@ describe('bookmarks module', () => {
     addBookmark(db, 'https://nodejs.org', 'Node.js', 'async runtime for javascript', ['js']);
     const results = searchBookmarks(db, 'async runtime');
     expect(results[0].url).toBe('https://nodejs.org');
+  });
+
+  test('searchBookmarks returns empty array when no matches', () => {
+    addBookmark(db, 'https://example.com', 'Example', '', []);
+    const results = searchBookmarks(db, 'zzznomatch');
+    expect(results).toHaveLength(0);
   });
 
   test('listByTag returns only bookmarks with matching tag', () => {
