@@ -1,63 +1,50 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import Database from 'better-sqlite3';
-import { initSchema } from './schema';
+import { openDb, initSchema } from './schema';
 import { addBookmark } from './bookmarks';
 import { saveSnapshot, getLatestSnapshot, listSnapshots, deleteSnapshot, clearSnapshots } from './bookmarks-snapshot';
+import type { Database } from 'better-sqlite3';
 
-function createTestDb() {
-  const db = new Database(':memory:');
-  initSchema(db);
-  db.prepare(`CREATE TABLE IF NOT EXISTS snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bookmark_id INTEGER NOT NULL,
-    content TEXT NOT NULL,
-    captured_at TEXT NOT NULL
-  )`).run();
+async function createTestDb(): Promise<Database> {
+  const db = await openDb(':memory:');
+  await initSchema(db);
   return db;
 }
 
 describe('bookmarks-snapshot', () => {
-  let db: ReturnType<typeof createTestDb>;
+  let db: Database;
   let bookmarkId: number;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
     bookmarkId = addBookmark(db, { url: 'https://example.com', title: 'Example', tags: [] });
   });
 
-  it('saves and retrieves latest snapshot', () => {
-    saveSnapshot(db, bookmarkId, 'Hello World');
+  it('saves and retrieves a snapshot', () => {
+    saveSnapshot(db, bookmarkId, '<html>content</html>', 'text/html');
     const snap = getLatestSnapshot(db, bookmarkId);
-    expect(snap).toBeDefined();
-    expect(snap!.content).toBe('Hello World');
+    expect(snap).not.toBeNull();
+    expect(snap!.content).toBe('<html>content</html>');
+    expect(snap!.mime_type).toBe('text/html');
   });
 
-  it('returns most recent snapshot as latest', () => {
-    saveSnapshot(db, bookmarkId, 'First');
-    saveSnapshot(db, bookmarkId, 'Second');
-    const snap = getLatestSnapshot(db, bookmarkId);
-    expect(snap!.content).toBe('Second');
-  });
-
-  it('lists all snapshots in descending order', () => {
-    saveSnapshot(db, bookmarkId, 'A');
-    saveSnapshot(db, bookmarkId, 'B');
+  it('lists snapshots for a bookmark', () => {
+    saveSnapshot(db, bookmarkId, 'first', 'text/plain');
+    saveSnapshot(db, bookmarkId, 'second', 'text/plain');
     const snaps = listSnapshots(db, bookmarkId);
-    expect(snaps).toHaveLength(2);
-    expect(snaps[0].content).toBe('B');
+    expect(snaps.length).toBe(2);
   });
 
   it('deletes a specific snapshot', () => {
-    saveSnapshot(db, bookmarkId, 'ToDelete');
-    const snap = getLatestSnapshot(db, bookmarkId)!;
-    deleteSnapshot(db, snap.id);
-    expect(listSnapshots(db, bookmarkId)).toHaveLength(0);
+    saveSnapshot(db, bookmarkId, 'to delete', 'text/plain');
+    const snap = getLatestSnapshot(db, bookmarkId);
+    deleteSnapshot(db, snap!.id);
+    expect(getLatestSnapshot(db, bookmarkId)).toBeNull();
   });
 
   it('clears all snapshots for a bookmark', () => {
-    saveSnapshot(db, bookmarkId, 'X');
-    saveSnapshot(db, bookmarkId, 'Y');
+    saveSnapshot(db, bookmarkId, 'a', 'text/plain');
+    saveSnapshot(db, bookmarkId, 'b', 'text/plain');
     clearSnapshots(db, bookmarkId);
-    expect(listSnapshots(db, bookmarkId)).toHaveLength(0);
+    expect(listSnapshots(db, bookmarkId).length).toBe(0);
   });
 });

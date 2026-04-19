@@ -1,54 +1,70 @@
-import { Argv } from 'yargs';
-import { Database } from 'better-sqlite3';
-import { saveSnapshot, getLatestSnapshot, listSnapshots, clearSnapshots } from '../../db/bookmarks-snapshot';
-import { getBookmarkById } from '../../db/bookmarks';
+import type { Argv } from 'yargs';
+import type { Database } from 'better-sqlite3';
+import {
+  saveSnapshot,
+  getLatestSnapshot,
+  listSnapshots,
+  deleteSnapshot,
+  clearSnapshots,
+} from '../../db/bookmarks-snapshot';
 
 export function registerSnapshotCommand(yargs: Argv, db: Database): Argv {
   return yargs.command(
-    'snapshot <action> <id> [content]',
-    'Manage bookmark snapshots',
+    'snapshot <subcommand>',
+    'Manage page snapshots for bookmarks',
     (y) =>
       y
-        .positional('action', { type: 'string', choices: ['save', 'latest', 'list', 'clear'], demandOption: true })
-        .positional('id', { type: 'number', demandOption: true })
-        .positional('content', { type: 'string' }),
-    (argv) => {
-      const id = argv.id as number;
-      const bookmark = getBookmarkById(db, id);
-      if (!bookmark) {
-        console.error(`Bookmark ${id} not found.`);
-        process.exit(1);
-      }
-
-      switch (argv.action) {
-        case 'save': {
-          const content = argv.content as string | undefined;
-          if (!content) {
-            console.error('Content is required for save.');
-            process.exit(1);
+        .command(
+          'save <id> <content>',
+          'Save a snapshot for a bookmark',
+          (y) =>
+            y
+              .positional('id', { type: 'number', demandOption: true })
+              .positional('content', { type: 'string', demandOption: true })
+              .option('mime', { type: 'string', default: 'text/html' }),
+          (argv) => {
+            saveSnapshot(db, argv.id as number, argv.content as string, argv.mime as string);
+            console.log('Snapshot saved.');
           }
-          saveSnapshot(db, id, content);
-          console.log(`Snapshot saved for bookmark ${id}.`);
-          break;
-        }
-        case 'latest': {
-          const snap = getLatestSnapshot(db, id);
-          if (!snap) { console.log('No snapshots found.'); break; }
-          console.log(`[${snap.captured_at}] ${snap.content}`);
-          break;
-        }
-        case 'list': {
-          const snaps = listSnapshots(db, id);
-          if (!snaps.length) { console.log('No snapshots found.'); break; }
-          snaps.forEach((s) => console.log(`#${s.id} [${s.captured_at}] ${s.content}`));
-          break;
-        }
-        case 'clear': {
-          clearSnapshots(db, id);
-          console.log(`All snapshots cleared for bookmark ${id}.`);
-          break;
-        }
-      }
-    }
+        )
+        .command(
+          'latest <id>',
+          'Show the latest snapshot for a bookmark',
+          (y) => y.positional('id', { type: 'number', demandOption: true }),
+          (argv) => {
+            const snap = getLatestSnapshot(db, argv.id as number);
+            if (!snap) { console.log('No snapshot found.'); return; }
+            console.log(`[${snap.id}] ${snap.created_at} (${snap.mime_type})\n${snap.content}`);
+          }
+        )
+        .command(
+          'list <id>',
+          'List all snapshots for a bookmark',
+          (y) => y.positional('id', { type: 'number', demandOption: true }),
+          (argv) => {
+            const snaps = listSnapshots(db, argv.id as number);
+            if (!snaps.length) { console.log('No snapshots.'); return; }
+            snaps.forEach((s) => console.log(`[${s.id}] ${s.created_at} (${s.mime_type})`));
+          }
+        )
+        .command(
+          'delete <snapshotId>',
+          'Delete a specific snapshot by ID',
+          (y) => y.positional('snapshotId', { type: 'number', demandOption: true }),
+          (argv) => {
+            deleteSnapshot(db, argv.snapshotId as number);
+            console.log('Snapshot deleted.');
+          }
+        )
+        .command(
+          'clear <id>',
+          'Clear all snapshots for a bookmark',
+          (y) => y.positional('id', { type: 'number', demandOption: true }),
+          (argv) => {
+            clearSnapshots(db, argv.id as number);
+            console.log('All snapshots cleared.');
+          }
+        ),
+    () => {}
   );
 }
