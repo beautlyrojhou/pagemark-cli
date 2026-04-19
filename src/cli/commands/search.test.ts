@@ -21,6 +21,13 @@ afterEach(async () => {
   await fs.unlink(dbPath).catch(() => {});
 });
 
+/** Helper to get the registered search command from a fresh program. */
+function getSearchCommand(dbPath: string) {
+  const program = new Command();
+  registerSearchCommand(program, dbPath);
+  return program.commands.find((c) => c.name() === 'search')!;
+}
+
 describe('registerSearchCommand', () => {
   it('registers the search command on the program', () => {
     const program = new Command();
@@ -30,17 +37,13 @@ describe('registerSearchCommand', () => {
   });
 
   it('search command has --tag option', () => {
-    const program = new Command();
-    registerSearchCommand(program, dbPath);
-    const cmd = program.commands.find((c) => c.name() === 'search')!;
+    const cmd = getSearchCommand(dbPath);
     const tagOpt = cmd.options.find((o) => o.long === '--tag');
     expect(tagOpt).toBeDefined();
   });
 
   it('parses query argument correctly', () => {
-    const program = new Command();
-    registerSearchCommand(program, dbPath);
-    const cmd = program.commands.find((c) => c.name() === 'search')!;
+    const cmd = getSearchCommand(dbPath);
     expect(cmd.registeredArguments[0].name()).toBe('query');
   });
 });
