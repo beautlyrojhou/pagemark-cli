@@ -25,6 +25,13 @@ describe('checkDuplicate', () => {
     expect(result.existingTitle).toBe('Example');
     expect(result.existingId).toBeTypeOf('number');
   });
+
+  it('returns isDuplicate false for similar but different url', () => {
+    const db = createTestDb();
+    addBookmark(db, { url: 'https://example.com', title: 'Example', tags: [] });
+    const result = checkDuplicate(db, 'https://example.com/page');
+    expect(result.isDuplicate).toBe(false);
+  });
 });
 
 describe('findDuplicates', () => {
@@ -44,6 +51,11 @@ describe('findDuplicates', () => {
     expect(dups[0].url).toBe('https://dup.com');
     expect(dups[0].ids).toHaveLength(2);
   });
+
+  it('returns empty array when database is empty', () => {
+    const db = createTestDb();
+    expect(findDuplicates(db)).toHaveLength(0);
+  });
 });
 
 describe('deduplicateBookmarks', () => {
@@ -57,5 +69,13 @@ describe('deduplicateBookmarks', () => {
     const remaining = db.prepare('SELECT id, title FROM bookmarks WHERE url = ?').all('https://dup.com') as any[];
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(id1);
+  });
+
+  it('returns 0 when there are no duplicates', () => {
+    const db = createTestDb();
+    addBookmark(db, { url: 'https://a.com', title: 'A', tags: [] });
+    addBookmark(db, { url: 'https://b.com', title: 'B', tags: [] });
+    const removed = deduplicateBookmarks(db);
+    expect(removed).toBe(0);
   });
 });
