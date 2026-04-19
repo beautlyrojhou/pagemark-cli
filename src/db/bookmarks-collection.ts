@@ -47,3 +47,10 @@ export function listCollectionBookmarks(db: Database, collectionId: number): any
 export function getCollectionByName(db: Database, name: string): { id: number; name: string } | undefined {
   return db.prepare(`SELECT id, name FROM collections WHERE name = ?`).get(name) as any;
 }
+
+export function renameCollection(db: Database, id: number, newName: string): boolean {
+  const result = db.prepare(
+    `UPDATE collections SET name = ? WHERE id = ?`
+  ).run(newName, id);
+  return result.changes > 0;
+}
