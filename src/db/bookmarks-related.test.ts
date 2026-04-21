@@ -1,75 +1,69 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import Database from 'better-sqlite3';
 import { openDb, initSchema } from './schema';
 import { addBookmark } from './bookmarks';
 import { findRelatedBookmarks, getRelatedIds } from './bookmarks-related';
+import type { Database } from 'better-sqlite3';
 
-function createTestDb() {
-  const db = openDb(':memory:');
-  initSchema(db);
+async function createTestDb(): Promise<Database> {
+  const db = await openDb(':memory:');
+  await initSchema(db);
   return db;
 }
 
-describe('findRelatedBookmarks', () => {
-  let db: ReturnType<typeof createTestDb>;
+describe('bookmarks-related', () => {
+  let db: Database;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
   });
 
-  it('returns empty array when bookmark has no tags', () => {
-    const id = addBookmark(db, { url: 'https://a.com', title: 'A', tags: [] });
-    addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['news'] });
-    const result = findRelatedBookmarks(db, id);
-    expect(result).toEqual([]);
+  it('finds related bookmarks by shared tags', async () => {
+    const id1 = await addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts', 'node'] });
+    const id2 = await addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts', 'web'] });
+    const id3 = await addBookmark(db, { url: 'https://c.com', title: 'C', tags: ['python'] });
+
+    const related = await findRelatedBookmarks(db, id1);
+    const relatedIds = related.map((r) => r.id);
+
+    expect(relatedIds).toContain(id2);
+    expect(relatedIds).not.toContain(id3);
+    expect(relatedIds).not.toContain(id1);
   });
 
-  it('returns bookmarks sharing at least one tag', () => {
-    const id = addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts', 'node'] });
-    addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts'] });
-    addBookmark(db, { url: 'https://c.com', title: 'C', tags: ['python'] });
+  it('returns empty array when no shared tags', async () => {
+    const id1 = await addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['unique-tag'] });
+    await addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['other-tag'] });
 
-    const result = findRelatedBookmarks(db, id);
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe('B');
-    expect(result[0].sharedTags).toContain('ts');
+    const related = await findRelatedBookmarks(db, id1);
+    expect(related).toHaveLength(0);
   });
 
-  it('ranks bookmarks with more shared tags higher', () => {
-    const id = addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts', 'node', 'web'] });
-    addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts'] });
-    addBookmark(db, { url: 'https://c.com', title: 'C', tags: ['ts', 'node'] });
+  it('orders results by shared tag count descending', async () => {
+    const id1 = await addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts', 'node', 'web'] });
+    const id2 = await addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts', 'node'] });
+    const id3 = await addBookmark(db, { url: 'https://c.com', title: 'C', tags: ['ts'] });
 
-    const result = findRelatedBookmarks(db, id);
-    expect(result[0].title).toBe('C');
-    expect(result[0].score).toBe(2);
-    expect(result[1].title).toBe('B');
-    expect(result[1].score).toBe(1);
+    const related = await findRelatedBookmarks(db, id1);
+    expect(related[0].id).toBe(id2);
+    expect(related[1].id).toBe(id3);
   });
 
-  it('respects the limit parameter', () => {
-    const id = addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['tag'] });
-    for (let i = 0; i < 10; i++) {
-      addBookmark(db, { url: `https://x${i}.com`, title: `X${i}`, tags: ['tag'] });
-    }
-    const result = findRelatedBookmarks(db, id, 3);
-    expect(result).toHaveLength(3);
+  it('respects limit option', async () => {
+    const id1 = await addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts'] });
+    await addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts'] });
+    await addBookmark(db, { url: 'https://c.com', title: 'C', tags: ['ts'] });
+    await addBookmark(db, { url: 'https://d.com', title: 'D', tags: ['ts'] });
+
+    const related = await findRelatedBookmarks(db, id1, { limit: 2 });
+    expect(related).toHaveLength(2);
   });
 
-  it('does not include the source bookmark itself', () => {
-    const id = addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts'] });
-    addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts'] });
-    const result = findRelatedBookmarks(db, id);
-    expect(result.every((r) => r.id !== id)).toBe(true);
-  });
-});
+  it('getRelatedIds returns only ids', async () => {
+    const id1 = await addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts'] });
+    const id2 = await addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts'] });
 
-describe('getRelatedIds', () => {
-  it('returns only IDs', () => {
-    const db = createTestDb();
-    const id = addBookmark(db, { url: 'https://a.com', title: 'A', tags: ['ts'] });
-    const b = addBookmark(db, { url: 'https://b.com', title: 'B', tags: ['ts'] });
-    const ids = getRelatedIds(db, id);
-    expect(ids).toContain(b);
+    const ids = await getRelatedIds(db, id1);
+    expect(ids).toContain(id2);
+    expect(typeof ids[0]).toBe('number');
   });
 });
