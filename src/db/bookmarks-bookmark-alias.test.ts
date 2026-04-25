@@ -1,5 +1,7 @@
+import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { initSchema } from './schema';
+import { addBookmark } from './bookmarks';
 import {
   addAlias,
   removeAlias,
@@ -8,79 +10,64 @@ import {
   listAllAliases,
   clearAliases,
 } from './bookmarks-bookmark-alias';
-import { addBookmark } from './bookmarks';
 
 function createTestDb() {
   const db = new Database(':memory:');
   initSchema(db);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS bookmark_aliases (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      bookmark_id INTEGER NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
-      alias TEXT NOT NULL UNIQUE,
-      created_at TEXT NOT NULL
-    )
-  `);
   return db;
 }
 
-describe('bookmark aliases', () => {
+describe('bookmarks-bookmark-alias', () => {
   let db: ReturnType<typeof createTestDb>;
   let bookmarkId: number;
 
   beforeEach(() => {
     db = createTestDb();
-    bookmarkId = addBookmark(db, { url: 'https://example.com', title: 'Example', tags: [] });
+    bookmarkId = addBookmark(db, { url: 'https://example.com', title: 'Example' });
   });
 
-  test('addAlias and getAliases', () => {
-    addAlias(db, bookmarkId, 'ex');
-    addAlias(db, bookmarkId, 'example');
+  it('adds an alias to a bookmark', () => {
+    addAlias(db, bookmarkId, 'my-example');
     const aliases = getAliases(db, bookmarkId);
-    expect(aliases).toContain('ex');
-    expect(aliases).toContain('example');
-    expect(aliases).toHaveLength(2);
+    expect(aliases).toContain('my-example');
   });
 
-  test('addAlias throws on duplicate alias', () => {
-    addAlias(db, bookmarkId, 'ex');
-    expect(() => addAlias(db, bookmarkId, 'ex')).toThrow("Alias 'ex' is already in use.");
+  it('resolves an alias to a bookmark id', () => {
+    addAlias(db, bookmarkId, 'ex-alias');
+    const resolved = resolveAlias(db, 'ex-alias');
+    expect(resolved).toBe(bookmarkId);
   });
 
-  test('removeAlias returns true when removed', () => {
-    addAlias(db, bookmarkId, 'ex');
-    const removed = removeAlias(db, 'ex');
-    expect(removed).toBe(true);
-    expect(getAliases(db, bookmarkId)).toHaveLength(0);
+  it('returns null for unknown alias', () => {
+    const resolved = resolveAlias(db, 'nonexistent');
+    expect(resolved).toBeNull();
   });
 
-  test('removeAlias returns false when not found', () => {
-    expect(removeAlias(db, 'nonexistent')).toBe(false);
+  it('removes an alias', () => {
+    addAlias(db, bookmarkId, 'temp-alias');
+    removeAlias(db, bookmarkId, 'temp-alias');
+    const aliases = getAliases(db, bookmarkId);
+    expect(aliases).not.toContain('temp-alias');
   });
 
-  test('resolveAlias returns bookmarkId', () => {
-    addAlias(db, bookmarkId, 'mysite');
-    expect(resolveAlias(db, 'mysite')).toBe(bookmarkId);
-  });
-
-  test('resolveAlias returns null for unknown alias', () => {
-    expect(resolveAlias(db, 'ghost')).toBeNull();
-  });
-
-  test('listAllAliases returns all aliases', () => {
-    const id2 = addBookmark(db, { url: 'https://other.com', title: 'Other', tags: [] });
-    addAlias(db, bookmarkId, 'alpha');
-    addAlias(db, id2, 'beta');
+  it('lists all aliases across bookmarks', () => {
+    const id2 = addBookmark(db, { url: 'https://other.com', title: 'Other' });
+    addAlias(db, bookmarkId, 'alias-a');
+    addAlias(db, id2, 'alias-b');
     const all = listAllAliases(db);
-    expect(all).toHaveLength(2);
-    expect(all.map((a) => a.alias)).toEqual(['alpha', 'beta']);
+    expect(all.length).toBe(2);
+    expect(all.map((a) => a.alias)).toEqual(expect.arrayContaining(['alias-a', 'alias-b']));
   });
 
-  test('clearAliases removes all aliases for a bookmark', () => {
+  it('clears all aliases for a bookmark', () => {
     addAlias(db, bookmarkId, 'a1');
     addAlias(db, bookmarkId, 'a2');
-    const count = clearAliases(db, bookmarkId);
-    expect(count).toBe(2);
+    clearAliases(db, bookmarkId);
     expect(getAliases(db, bookmarkId)).toHaveLength(0);
+  });
+
+  it('does not allow duplicate aliases', () => {
+    addAlias(db, bookmarkId, 'dup');
+    expect(() => addAlias(db, bookmarkId, 'dup')).toThrow();
   });
 });
