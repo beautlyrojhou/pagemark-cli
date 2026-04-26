@@ -58,6 +58,15 @@ describe('bookmarks-bookmark-history', () => {
     expect(getHistory(db, bookmarkId)).toHaveLength(0);
   });
 
+  it('clears history only for the specified bookmark', () => {
+    const id2 = addBookmark(db, 'https://other.com', 'Other', []);
+    recordHistory(db, bookmarkId, 'title', 'A', 'B');
+    recordHistory(db, id2, 'title', 'X', 'Y');
+    clearHistory(db, bookmarkId);
+    expect(getHistory(db, bookmarkId)).toHaveLength(0);
+    expect(getHistory(db, id2)).toHaveLength(1);
+  });
+
   it('lists recent changes across all bookmarks', () => {
     const id2 = addBookmark(db, 'https://other.com', 'Other', []);
     recordHistory(db, bookmarkId, 'title', 'A', 'B');
